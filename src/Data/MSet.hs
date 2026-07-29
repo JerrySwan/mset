@@ -109,8 +109,12 @@ instance (Ord a, Realm m, Num m) => Realm (MSet m a) where
   MSet m \/ MSet n = MSet $ Map.unionWith (\/) m n
   MSet m /\ MSet n = MSet $ Map.intersectionWith (/\) m n
 
+instance (Ord a, Num m) => Semigroup (MSet m a) where
+  MSet m <> MSet n = MSet $ Map.unionWith (+) m n
+  -- mempty = empty
+
 instance (Ord a, Num m) => Monoid (MSet m a) where
-  MSet m `mappend` MSet n = MSet $ Map.unionWith (+) m n
+  mappend = (<>)
   mempty = empty
 
 -- | Modify the occurrences of an @MSet@ by a function
