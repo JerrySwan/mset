@@ -6,12 +6,16 @@
 
 module RealmSpec where
 
+-----------------------------------
+
 import Data.Bifunctor
 import Data.Realm
 import Data.Monoid
 import Data.MSet
 import Numeric.Natural
 import Test.QuickCheck
+
+-----------------------------------
 
 realmLaws :: forall r. (Arbitrary r, Show r, Realm r) => Property
 realmLaws = forAll (arbitrary @(r,r,r)) $ \(k, m, n) ->
@@ -25,8 +29,8 @@ realmLaws = forAll (arbitrary @(r,r,r)) $ \(k, m, n) ->
      , ("summation"    , summationLaw m n)
      ]
 
-instance Arbitrary Natural where
-  arbitrary = fmap (fromIntegral . abs) (arbitrary @Integer)
+-- instance Arbitrary Natural where
+--  arbitrary = fmap (fromIntegral . abs) (arbitrary @Integer)
 
 prop_natural_realm :: Property
 prop_natural_realm = realmLaws @(Sum Natural)

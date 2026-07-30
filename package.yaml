@@ -16,6 +16,7 @@ dependencies:
 - base >= 4.7 && < 5
 - containers
 - groups
+- QuickCheck
 
 library:
   source-dirs: src
@@ -30,4 +31,4 @@ tests:
     - -with-rtsopts=-N
     dependencies:
     - mset
-    - QuickCheck
+

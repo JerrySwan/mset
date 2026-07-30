@@ -35,6 +35,10 @@ import Data.Group
 import Data.Realm
 import Numeric.Natural
 
+import Test.QuickCheck
+
+-----------------------------------
+
 -- | An @MSet m a@ is a linear combination of objects in @a@ with coefficients
 --   in @m@.
 newtype MSet m a = MSet { unMS :: Map a m }
@@ -44,6 +48,8 @@ type Multiset a = MSet Natural a
 type RatMSet a = MSet Rational a
 
 type IntMSet a = MSet Int a
+
+-----------------------------------
 
 -- | Two multisets @a@ and @b@ are equal, if for any object @x@,
 --   @multiplicity x a == multiplicity x b@
@@ -58,53 +64,6 @@ instance (Ord a, Ord m, Num m) => Ord (MSet m a) where
 instance (Show a, Show m, Eq m, Num m) => Show (MSet m a) where
   show m = "fromOccurList " ++ show (occurList m)
 
--- | Get the occurrence list of a given @MSet@
-occurList :: (Eq m, Num m) => MSet m a -> [(a, m)]
-occurList = filter ((/= 0) . snd) . occurList'
-
-occurList' :: Num m => MSet m a -> [(a, m)]
-occurList' = Map.toList . unMS
-
--- | Construct an @MSet@ from an occurrence list
-fromOccurList :: (Ord a, Num m) => [(a, m)] -> MSet m a
-fromOccurList = MSet . Map.fromListWith (+)
-
--- | Get the multiplicity of an object in a given @MSet@.
-multiplicity :: (Ord a, Num m) => MSet m a -> a -> m
-multiplicity (MSet m) a = Map.findWithDefault 0 a m
-
--- | An object @x@ occurs in @s@ if the multiplicity of @x@ is nonzero
---   or, equivalently, if its multiplicity is @1@ in any scalar multiple of
---   @s@.
-occursIn :: (Ord a, Eq m, Num m) => a -> MSet m a -> Bool
-occursIn a m = multiplicity m a /= 0
-
--- | @a isFrom b@ when every element of @a@ is also in @b@.
-isFrom :: (Ord a, Eq m, Num m) => MSet m a -> MSet m a -> Bool
-isFrom m = getAll . foldMap (\a _ -> All $ a `occursIn` m)
-
--- | Fold an @MSet@ with a monoid
-foldMap :: (Eq m, Num m, Monoid b) => (a -> m -> b) -> MSet m a -> b
-foldMap f = P.foldMap (uncurry f) . occurList
-
-foldMap' :: (Num m, Monoid b) => (a -> m -> b) -> MSet m a -> b
-foldMap' f = P.foldMap (uncurry f) . occurList'
-
--- | The size of an @MSet@ is the sum of its multiplicities.
-size :: Num m => MSet m a -> m
-size = getSum . foldMap' (const Sum)
-
--- | The empty @MSet@
-empty :: MSet m a
-empty = MSet Map.empty
-
--- | Insert one occurrence of an object into an @MSet@
-insert :: (Num m, Ord a) => a -> MSet m a -> MSet m a
-insert a m = m <> fromList [a]
-
-fromList :: (Num m, Ord a) => [a] -> MSet m a
-fromList = fromOccurList . P.map (,1)
-
 instance (Ord a, Realm m, Num m) => Realm (MSet m a) where
   MSet m \/ MSet n = MSet $ Map.unionWith (\/) m n
   MSet m /\ MSet n = MSet $ Map.intersectionWith (/\) m n
@@ -117,13 +76,93 @@ instance (Ord a, Num m) => Monoid (MSet m a) where
   mappend = (<>)
   mempty = empty
 
--- | Modify the occurrences of an @MSet@ by a function
-mapOccurs :: (m -> n) -> MSet m a -> MSet n a
-mapOccurs f (MSet m) = MSet $ Map.map f m
+instance (Ord a, Num m) => Group (MSet m a) where
+  invert = mapOccurs (* (-1))
+
+instance (Ord a, Num m, Arbitrary a, Arbitrary m) => Arbitrary (MSet m a) where
+  arbitrary = fromOccurList <$> listOf arbitrary
+
+-----------------------------------
+
+-- | The empty @MSet@
+empty :: MSet m a
+empty = MSet Map.empty
+
+singleton :: (Ord a, Num m) => a -> MSet m a
+singleton a = fromList [a]
+
+fromList :: (Num m, Ord a) => [a] -> MSet m a
+fromList = fromOccurList . P.map (,1)
+
+-- | Construct an @MSet@ from an occurrence list
+fromOccurList :: (Ord a, Num m) => [(a, m)] -> MSet m a
+fromOccurList = MSet . Map.fromListWith (+)
+
+-----------------------------------
+
+-- | Get the multiplicity of an object in a given @MSet@.
+multiplicity :: (Ord a, Num m) => MSet m a -> a -> m
+multiplicity (MSet m) a = Map.findWithDefault 0 a m
+
+-- | The size of an @MSet@ is the sum of its multiplicities.
+size :: Num m => MSet m a -> m
+size = getSum . foldMap' (const Sum)
+
+-- | Get the occurrence list of a given @MSet@
+occurList :: (Eq m, Num m) => MSet m a -> [(a, m)]
+occurList = filter ((/= 0) . snd) . occurList'
+
+occurList' :: Num m => MSet m a -> [(a, m)]
+occurList' = Map.toList . unMS
+
+-- | An object @x@ occurs in @s@ if the multiplicity of @x@ is nonzero
+--   or, equivalently, if its multiplicity is @1@ in any scalar multiple of
+--   @s@.
+occursIn :: (Ord a, Eq m, Num m) => a -> MSet m a -> Bool
+occursIn a m = multiplicity m a /= 0
+
+member :: (Ord a, Eq m, Num m) => a -> MSet m a -> Bool
+member = occursIn 
+
+-- | @a isFrom b@ when every element of @a@ is also in @b@.
+isFrom :: (Ord a, Eq m, Num m) => MSet m a -> MSet m a -> Bool
+isFrom m = getAll . foldMap (\a _ -> All $ a `occursIn` m)
+
+isSubsetOf :: (Ord a, Eq m, Num m) => MSet m a -> MSet m a -> Bool
+isSubsetOf = isFrom
+
+-- | Fold an @MSet@ with a monoid
+foldMap :: (Eq m, Num m, Monoid b) => (a -> m -> b) -> MSet m a -> b
+foldMap f = P.foldMap (uncurry f) . occurList
+
+foldMap' :: (Num m, Monoid b) => (a -> m -> b) -> MSet m a -> b
+foldMap' f = P.foldMap (uncurry f) . occurList'
+
+-----------------------------------
 
 -- | Scale an @MSet@ by a number
 scale :: Num n => n -> MSet n a -> MSet n a
 scale n m = mapOccurs (n *) m
+
+-- | Insert one occurrence of an object into an @MSet@
+insert :: (Num m, Ord a) => a -> MSet m a -> MSet m a
+insert a m = m <> fromList [a]
+
+deleteAll :: Eq k => MSet v k -> k -> MSet v k
+deleteAll m x = MSet $ Map.filterWithKey (\k _ -> k /= x) (unMS m)
+
+union :: (Num v, Eq v, Ord k) => MSet v k -> MSet v k -> MSet v k
+union x y = fromOccurList $ occurList x ++ occurList y 
+
+-----------------------------------
+
+-- | Modify the occurrences of an @MSet@ by a function
+mapOccurs :: (m -> n) -> MSet m a -> MSet n a
+mapOccurs f (MSet m) = MSet $ Map.map f m
+
+lift2 :: (Eq m, Num m, Ord c) => (a -> b -> c) -> MSet m a -> MSet m b -> MSet m c
+lift2 f m n = fromOccurList $
+  (\(a,ma) (b,mb) -> (f a b, ma * mb)) <$> occurList m <*> occurList n
 
 -- | The direct product of two @MSet@s. The multiplicity of `(a,b)` will be
 --   the product of the multiplicity of `a` and the multiplicity of `b`.
@@ -133,13 +172,5 @@ product m n = lift2 (,) m n
 map :: (Eq m, Num m, Ord b) => (a -> b) -> MSet m a -> MSet m b
 map f = fromOccurList . P.map (first f) . occurList
 
-singleton :: (Ord a, Num m) => a -> MSet m a
-singleton a = fromList [a]
-
-lift2 :: (Eq m, Num m, Ord c) => (a -> b -> c) -> MSet m a -> MSet m b -> MSet m c
-lift2 f m n = fromOccurList $
-  (\(a,ma) (b,mb) -> (f a b, ma * mb)) <$> occurList m <*> occurList n
-
-instance (Ord a, Num m) => Group (MSet m a) where
-  invert = mapOccurs (* (-1))
+-- End ---------------------------------------------------------------
 

@@ -16,8 +16,6 @@ import Test.QuickCheck
 prop_multiset_realm :: Property
 prop_multiset_realm = realmLaws @(MSet (Sum Natural) Int)
 
-instance (Ord a, Num m, Arbitrary a, Arbitrary m) => Arbitrary (MSet m a) where
-  arbitrary = fromOccurList <$> listOf arbitrary
 
 return []
 tests :: IO Bool
